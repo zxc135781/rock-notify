@@ -1,0 +1,28 @@
+name: 洛克王国远行商人商品推送
+
+on:
+  # 北京时间 08:05, 12:05, 16:05, 20:05 (UTC 时间 00:05, 04:05, 08:05, 12:05)
+  schedule:
+    - cron: '5 0,4,8,12 * * *'
+  # 支持手动触发测试
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scraper
+        env:
+          WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+        run: python scraper.py
