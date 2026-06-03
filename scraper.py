@@ -89,6 +89,10 @@ def parse_products(html):
         type_match = re.search(r"showShopinfo\([^,]+,[^,]+,'([^']*)'", onclick)
         product["type"] = type_match.group(1) if type_match else ""
 
+        # 强烈推荐标识 (t1 徽章)
+        badge = item.select_one("div.t1")
+        product["recommend"] = bool(badge)
+
         # 计算剩余时间
         end_time = int(item.get("data-time", 0))
         if server_now and end_time:
@@ -120,7 +124,10 @@ def build_message(products, time_period):
     ]
 
     for i, p in enumerate(products, 1):
-        lines.append(f"**{i}. {p['name']}**")
+        name = p['name']
+        if p.get("recommend"):
+            name = f"🔥{name} <font color=\"warning\">强烈推荐</font>"
+        lines.append(f"**{i}. {name}**")
         lines.append(f"> 价格: <font color=\"warning\">{p['price']}</font> 洛克贝")
         lines.append(f"> 限购: {p['limit']}")
         if p.get("remain"):
@@ -189,7 +196,8 @@ def main():
         print(f"📦 当前时间段: {time_period}")
         print(f"📦 找到 {len(products)} 个商品:")
         for p in products:
-            print(f"   - {p['name']} | 价格: {p['price']} | 限购: {p['limit']}")
+            flag = " [强烈推荐]" if p.get("recommend") else ""
+            print(f"   - {p['name']}{flag} | 价格: {p['price']} | 限购: {p['limit']}")
         msg = build_message(products, time_period)
 
     print("\n📨 推送消息预览:")
