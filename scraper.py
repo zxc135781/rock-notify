@@ -43,6 +43,12 @@ def parse_products(html):
     if tip_div and "display:none" not in tip_div.get("style", "").replace(" ", ""):
         return [], time_period, True
 
+    # 从页面 JS 中提取服务器时间戳 serverNow
+    server_now = 0
+    sn_match = re.search(r"var\s+serverNow\s*=\s*(\d+)", html)
+    if sn_match:
+        server_now = int(sn_match.group(1))
+
     # 解析商品列表 (仅选择可见的商品项，排除占位提示)
     items = soup.select(".shop-list li.all_show.li_show")
     for item in items:
@@ -83,6 +89,19 @@ def parse_products(html):
         type_match = re.search(r"showShopinfo\([^,]+,[^,]+,'([^']*)'", onclick)
         product["type"] = type_match.group(1) if type_match else ""
 
+        # 计算剩余时间
+        end_time = int(item.get("data-time", 0))
+        if server_now and end_time:
+            surplus = end_time - server_now
+            if surplus > 0:
+                h = surplus // 3600
+                m = (surplus % 3600) // 60
+                product["remain"] = f"{h}小时{m}分钟"
+            else:
+                product["remain"] = "已结束"
+        else:
+            product["remain"] = "未知"
+
         products.append(product)
 
     return products, time_period, False
@@ -100,6 +119,8 @@ def build_message(products, time_period):
         lines.append(f"**{i}. {p['name']}**")
         lines.append(f"> 价格: <font color=\"warning\">{p['price']}</font> 洛克贝")
         lines.append(f"> 限购: {p['limit']}")
+        if p.get("remain"):
+            lines.append(f"> ⏳ 剩余时间: <font color=\"info\">{p['remain']}</font>")
         if p["type"]:
             lines.append(f"> 类型: {p['type']}")
         if p["desc"]:
