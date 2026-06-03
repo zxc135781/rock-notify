@@ -1,0 +1,24 @@
+name: Keep Alive
+
+on:
+  schedule:
+    # 每30天运行一次，防止60天不活跃导致定时工作流被暂停
+    - cron: '0 2 1,15 * *'
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Keep alive
+        run: |
+          date -u > .last_active
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .last_active
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "chore: keep alive $(date -u +%Y-%m-%d)"
+          git push
