@@ -62,8 +62,8 @@ def parse_products(html):
         price_tag = item.select_one(".shop_price")
         if price_tag:
             price_text = price_tag.get_text(strip=True)
-            match = re.search(r"(\d+)", price_text)
-            product["price"] = match.group(1) if match else "未知"
+            match = re.search(r"：([\d.w]+)", price_text)
+            product["price"] = match.group(1).strip() if match else "未知"
         else:
             product["price"] = "未知"
 
