@@ -102,6 +102,10 @@ def parse_products(html):
         else:
             product["remain"] = "未知"
 
+        # 跳过已结束的商品
+        if product.get("remain") == "已结束":
+            continue
+
         products.append(product)
 
     return products, time_period, False
