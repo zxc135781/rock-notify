@@ -89,8 +89,8 @@ def parse_products(html):
         type_match = re.search(r"showShopinfo\([^,]+,[^,]+,'([^']*)'", onclick)
         product["type"] = type_match.group(1) if type_match else ""
 
-        # 强烈推荐标识 (t1 徽章)
-        badge = item.select_one("div.t1")
+        # 强烈推荐标识 (tp2 右上角角标)
+        badge = item.select_one("div.tp2")
         product["recommend"] = bool(badge)
 
         # 计算剩余时间
