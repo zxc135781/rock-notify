@@ -1,5 +1,7 @@
 # 🏪 洛克王国远行商人商品推送
 
+[![商品推送](https://github.com/zxc135781/rock-notify/actions/workflows/notify.yml/badge.svg)](https://github.com/zxc135781/rock-notify/actions/workflows/notify.yml)
+
 自动抓取 [洛克王国：世界远行商人查询器](https://www.onebiji.com/hykb_tools/comm/lkwgmerchant/preview.php?id=1&immgj=0) 的商品信息，并通过企业微信机器人推送通知。
 
 ## ⏰ 运行时间
@@ -8,10 +10,10 @@
 
 | 时间 (北京) | 时间 (UTC) |
 |------------|-----------|
-| 08:05      | 00:05     |
-| 12:05      | 04:05     |
-| 16:05      | 08:05     |
-| 20:05      | 12:05     |
+| 08:07      | 00:07     |
+| 12:07      | 04:07     |
+| 16:07      | 08:07     |
+| 20:07      | 12:07     |
 
 每次运行会抓取对应时间段的商人商品并推送。
 
