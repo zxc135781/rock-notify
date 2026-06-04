@@ -2,8 +2,8 @@ name: Keep Alive
 
 on:
   schedule:
-    # 每30天运行一次，防止60天不活跃导致定时工作流被暂停
-    - cron: '0 2 1,15 * *'
+    # 每月1号运行，防止60天不活跃导致定时工作流被暂停
+    - cron: '0 2 1 * *'
   workflow_dispatch:
 
 permissions:

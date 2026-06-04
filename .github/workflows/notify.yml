@@ -1,7 +1,7 @@
 name: 洛克王国远行商人商品推送
 
 on:
-  # 北京时间 08:07, 12:07, 16:07, 20:07 (UTC 时间 00:05, 04:05, 08:05, 12:05)
+  # 北京时间 08:07, 12:07, 16:07, 20:07 (UTC 00:07, 04:07, 08:07, 12:07)
   schedule:
     - cron: '7 0,4,8,12 * * *'
   # 支持手动触发测试
@@ -10,9 +10,15 @@ on:
   repository_dispatch:
     types: [trigger-notify]
 
+# 同一时间只允许一个运行实例，新的触发会取消正在进行的旧运行
+concurrency:
+  group: notify-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   notify:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,9 +27,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-lock.txt
 
       - name: Run scraper
         env:

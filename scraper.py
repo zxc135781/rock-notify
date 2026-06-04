@@ -5,6 +5,8 @@ import os
 import re
 import sys
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 
 URL = "https://www.onebiji.com/hykb_tools/comm/lkwgmerchant/preview.php?id=1&immgj=0"
@@ -17,9 +19,27 @@ HEADERS = {
 }
 
 
+def _make_session():
+    """创建带自动重试的 requests Session"""
+    session = requests.Session()
+    retry = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[500, 502, 503, 504],
+        allowed_methods=["GET", "POST"],
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
+
+session = _make_session()
+
+
 def fetch_page():
     """获取页面 HTML"""
-    resp = requests.get(URL, headers=HEADERS, timeout=30)
+    resp = session.get(URL, headers=HEADERS, timeout=30)
     resp.raise_for_status()
     resp.encoding = "utf-8"
     return resp.text
@@ -170,7 +190,7 @@ def send_to_wecom(content):
         },
     }
 
-    resp = requests.post(WEBHOOK_URL, json=payload, timeout=30)
+    resp = session.post(WEBHOOK_URL, json=payload, timeout=30)
     resp.raise_for_status()
     result = resp.json()
 
