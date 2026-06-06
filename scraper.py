@@ -268,15 +268,17 @@ def send_to_feishu(content):
 
     payload = {
         "msg_type": "post",
-        "content": json.dumps({
+        "content": {
             "post": {
                 "zh_cn": {
                     "title": title,
                     "content": body_lines,
                 }
             }
-        }),
+        },
     }
+
+    print(f"🔍 飞书 payload: {json.dumps(payload, ensure_ascii=False)[:500]}")
 
     resp = session.post(FEISHU_WEBHOOK_URL, json=payload, timeout=30)
     resp.raise_for_status()
