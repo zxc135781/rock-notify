@@ -179,106 +179,48 @@ def build_no_merchant_message():
     )
 
 
-def _strip_font_tags(text):
-    """移除 <font> 标签，保留内部文本"""
-    return re.sub(r'<font[^>]*>([^<]*)</font>', r'\1', text)
-
-
-def _parse_line_to_elements(line):
-    """将一行企业微信 Markdown 转换为飞书 post 元素列表"""
-    elements = []
-    remaining = line
-
-    while remaining:
-        link_match = re.search(r'\[([^\]]+)\]\(([^)]+)\)', remaining)
-        bold_match = re.search(r'\*\*([^*]+)\*\*', remaining)
-        font_match = re.search(r'<font[^>]*>([^<]*)</font>', remaining)
-
-        matches = []
-        if link_match:
-            matches.append(("link", link_match))
-        if bold_match:
-            matches.append(("bold", bold_match))
-        if font_match:
-            matches.append(("font", font_match))
-
-        if not matches:
-            text = _strip_font_tags(remaining.replace("> ", "").strip())
-            if text:
-                elements.append({"tag": "text", "text": text})
-            break
-
-        matches.sort(key=lambda x: x[1].start())
-        kind, m = matches[0]
-
-        if m.start() > 0:
-            prefix = _strip_font_tags(remaining[:m.start()].replace("> ", "").strip())
-            if prefix:
-                elements.append({"tag": "text", "text": prefix})
-
-        if kind == "link":
-            elements.append({"tag": "a", "text": m.group(1), "href": m.group(2)})
-            remaining = remaining[m.end():]
-        elif kind == "bold":
-            # 粗体内部可能包含 <font> 标签，需要清理
-            bold_text = _strip_font_tags(m.group(1))
-            elements.append({"tag": "text", "text": bold_text, "style": ["bold"]})
-            remaining = remaining[m.end():]
-        elif kind == "font":
-            elements.append({"tag": "text", "text": m.group(1), "style": ["bold"]})
-            remaining = remaining[m.end():]
-
-    return elements
-
-
-def _parse_wecom_md_to_feishu_post(content):
-    """将企业微信 Markdown 转换为飞书富文本 post 格式
-
-    飞书 post 格式: {"title": str, "content": [[element, ...], ...]}
-    每个 element: {"tag": "text"/"a", "text": str, ...}
-    """
-    title = ""
-    lines = content.split("\n")
-    body_lines = []
-
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-
-        # 标题行 (# 开头)
-        if line.startswith("# "):
-            title = line[2:].strip()
-            continue
-
-        elements = _parse_line_to_elements(line)
-        if elements:
-            body_lines.append(elements)
-
-    return title, body_lines
+def _wecom_md_to_feishu_md(content):
+    """将企业微信 Markdown 转换为飞书 Markdown 格式"""
+    result = content
+    # 移除 <font> 标签，保留内部文本
+    result = re.sub(r'<font[^>]*>([^<]*)</font>', r'\1', result)
+    return result
 
 
 def send_to_feishu(content):
-    """推送消息到飞书群机器人"""
+    """推送消息到飞书群机器人（使用 interactive card + markdown）"""
     if not FEISHU_WEBHOOK_URL:
         print("⏭️  未设置 FEISHU_WEBHOOK_URL，跳过飞书推送")
         return
 
-    title, body_lines = _parse_wecom_md_to_feishu_post(content)
+    # 从消息中提取标题
+    title = ""
+    lines = content.split("\n")
+    for line in lines:
+        if line.startswith("# "):
+            title = line[2:].strip()
+            break
+
+    md_content = _wecom_md_to_feishu_md(content)
 
     payload = {
-        "msg_type": "post",
-        "content": {
-            "post": {
-                "zh_cn": {
-                    "title": title,
-                    "content": body_lines,
+        "msg_type": "interactive",
+        "card": {
+            "header": {
+                "title": {
+                    "tag": "plain_text",
+                    "content": title,
+                },
+                "template": "blue",
+            },
+            "elements": [
+                {
+                    "tag": "markdown",
+                    "content": md_content,
                 }
-            }
+            ],
         },
     }
-
-    print(f"🔍 飞书 payload: {json.dumps(payload, ensure_ascii=False)[:500]}")
 
     resp = session.post(FEISHU_WEBHOOK_URL, json=payload, timeout=30)
     resp.raise_for_status()
