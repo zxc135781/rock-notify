@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""洛克王国远行商人商品爬虫 - 抓取当前时间段商品并推送至企业微信机器人"""
+"""洛克王国远行商人商品爬虫 - 抓取当前时间段商品并推送至企业微信/飞书机器人"""
 
 import os
 import re
@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 
 URL = "https://www.onebiji.com/hykb_tools/comm/lkwgmerchant/preview.php?id=1&immgj=0"
 WEBHOOK_URL = os.environ.get("WECOM_WEBHOOK_URL", "")
+FEISHU_WEBHOOK_URL = os.environ.get("FEISHU_WEBHOOK_URL", "")
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -177,11 +178,120 @@ def build_no_merchant_message():
     )
 
 
+def _strip_font_tags(text):
+    """移除 <font> 标签，保留内部文本"""
+    return re.sub(r'<font[^>]*>([^<]*)</font>', r'\1', text)
+
+
+def _parse_line_to_elements(line):
+    """将一行企业微信 Markdown 转换为飞书 post 元素列表"""
+    elements = []
+    remaining = line
+
+    while remaining:
+        link_match = re.search(r'\[([^\]]+)\]\(([^)]+)\)', remaining)
+        bold_match = re.search(r'\*\*([^*]+)\*\*', remaining)
+        font_match = re.search(r'<font[^>]*>([^<]*)</font>', remaining)
+
+        matches = []
+        if link_match:
+            matches.append(("link", link_match))
+        if bold_match:
+            matches.append(("bold", bold_match))
+        if font_match:
+            matches.append(("font", font_match))
+
+        if not matches:
+            text = _strip_font_tags(remaining.replace("> ", "").strip())
+            if text:
+                elements.append({"tag": "text", "text": text})
+            break
+
+        matches.sort(key=lambda x: x[1].start())
+        kind, m = matches[0]
+
+        if m.start() > 0:
+            prefix = _strip_font_tags(remaining[:m.start()].replace("> ", "").strip())
+            if prefix:
+                elements.append({"tag": "text", "text": prefix})
+
+        if kind == "link":
+            elements.append({"tag": "a", "text": m.group(1), "href": m.group(2)})
+            remaining = remaining[m.end():]
+        elif kind == "bold":
+            # 粗体内部可能包含 <font> 标签，需要清理
+            bold_text = _strip_font_tags(m.group(1))
+            elements.append({"tag": "text", "text": bold_text, "style": ["bold"]})
+            remaining = remaining[m.end():]
+        elif kind == "font":
+            elements.append({"tag": "text", "text": m.group(1), "style": ["bold"]})
+            remaining = remaining[m.end():]
+
+    return elements
+
+
+def _parse_wecom_md_to_feishu_post(content):
+    """将企业微信 Markdown 转换为飞书富文本 post 格式
+
+    飞书 post 格式: {"title": str, "content": [[element, ...], ...]}
+    每个 element: {"tag": "text"/"a", "text": str, ...}
+    """
+    title = ""
+    lines = content.split("\n")
+    body_lines = []
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        # 标题行 (# 开头)
+        if line.startswith("# "):
+            title = line[2:].strip()
+            continue
+
+        elements = _parse_line_to_elements(line)
+        if elements:
+            body_lines.append(elements)
+
+    return title, body_lines
+
+
+def send_to_feishu(content):
+    """推送消息到飞书群机器人"""
+    if not FEISHU_WEBHOOK_URL:
+        print("⏭️  未设置 FEISHU_WEBHOOK_URL，跳过飞书推送")
+        return
+
+    title, body_lines = _parse_wecom_md_to_feishu_post(content)
+
+    payload = {
+        "msg_type": "post",
+        "content": {
+            "post": {
+                "zh_cn": {
+                    "title": title,
+                    "content": body_lines,
+                }
+            }
+        },
+    }
+
+    resp = session.post(FEISHU_WEBHOOK_URL, json=payload, timeout=30)
+    resp.raise_for_status()
+    result = resp.json()
+
+    if result.get("code") == 0 or result.get("StatusCode") == 0:
+        print("✅ 飞书消息推送成功")
+    else:
+        print(f"❌ 飞书推送失败: {result}")
+
+
 def send_to_wecom(content):
     """推送消息到企业微信机器人"""
     if not WEBHOOK_URL:
-        print("❌ 错误: 未设置 WECOM_WEBHOOK_URL 环境变量")
-        sys.exit(1)
+        print("⏭️  未设置 WECOM_WEBHOOK_URL，跳过企业微信推送")
+        return
 
     payload = {
         "msgtype": "markdown",
@@ -235,7 +345,13 @@ def main():
     print(msg)
     print("-" * 40)
 
+    # 推送到所有已配置的渠道
     send_to_wecom(msg)
+    send_to_feishu(msg)
+
+    if not WEBHOOK_URL and not FEISHU_WEBHOOK_URL:
+        print("❌ 错误: 未配置任何推送渠道 (WECOM_WEBHOOK_URL / FEISHU_WEBHOOK_URL)")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

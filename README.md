@@ -2,7 +2,7 @@
 
 [![商品推送](https://github.com/zxc135781/rock-notify/actions/workflows/notify.yml/badge.svg)](https://github.com/zxc135781/rock-notify/actions/workflows/notify.yml)
 
-自动抓取 [洛克王国：世界远行商人查询器](https://www.onebiji.com/hykb_tools/comm/lkwgmerchant/preview.php?id=1&immgj=0) 的商品信息，并通过企业微信机器人推送通知。
+自动抓取 [洛克王国：世界远行商人查询器](https://www.onebiji.com/hykb_tools/comm/lkwgmerchant/preview.php?id=1&immgj=0) 的商品信息，并通过企业微信/飞书机器人推送通知。
 
 ## ⏰ 运行时间
 
@@ -23,13 +23,23 @@
 
 将本项目推送到你的 GitHub 仓库。
 
-### 2. 配置企业微信 Webhook
+### 2. 配置推送渠道
+
+至少配置以下其中一个渠道（可同时配置两个）：
+
+#### 企业微信（可选）
 
 1. 在企业微信群中添加一个**群机器人**
 2. 复制机器人的 Webhook URL
 3. 在 GitHub 仓库中：**Settings** > **Secrets and variables** > **Actions**
 4. 点击 **New repository secret**
 5. 名称填写 `WECOM_WEBHOOK_URL`，值填写你的 Webhook URL
+
+#### 飞书（可选）
+
+1. 在飞书群中添加一个**自定义机器人**
+2. 复制机器人的 Webhook URL
+3. 在 GitHub 仓库的 Secrets 中添加 `FEISHU_WEBHOOK_URL`
 
 ### 3. 启用 GitHub Actions
 
@@ -41,8 +51,9 @@
 # 安装依赖
 pip install -r requirements.txt
 
-# 设置环境变量
+# 设置环境变量（至少配置一个）
 export WECOM_WEBHOOK_URL="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY"
+export FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_KEY"
 
 # 运行
 python scraper.py
