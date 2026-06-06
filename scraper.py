@@ -4,6 +4,7 @@
 import os
 import re
 import sys
+import json
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -267,14 +268,14 @@ def send_to_feishu(content):
 
     payload = {
         "msg_type": "post",
-        "content": {
+        "content": json.dumps({
             "post": {
                 "zh_cn": {
                     "title": title,
                     "content": body_lines,
                 }
             }
-        },
+        }),
     }
 
     resp = session.post(FEISHU_WEBHOOK_URL, json=payload, timeout=30)
