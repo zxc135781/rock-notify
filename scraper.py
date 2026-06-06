@@ -4,7 +4,6 @@
 import os
 import re
 import sys
-import json
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -179,48 +178,87 @@ def build_no_merchant_message():
     )
 
 
-def _wecom_md_to_feishu_md(content):
-    """将企业微信 Markdown 转换为飞书 Markdown 格式"""
-    result = content
-    # 移除 <font> 标签，保留内部文本
-    result = re.sub(r'<font[^>]*>([^<]*)</font>', r'\1', result)
-    return result
+def build_feishu_card(products, time_period):
+    """从商品数据直接构建飞书卡片 payload"""
+    md_parts = [f"**⏰ 当前时间段**: {time_period}\n"]
 
+    for i, p in enumerate(products, 1):
+        tags = []
+        if p.get("high_value"):
+            tags.append("💎超高价值")
+        if p.get("recommend"):
+            tags.append("🔥强烈推荐")
+        tag_str = " " + " ".join(tags) if tags else ""
 
-def send_to_feishu(content):
-    """推送消息到飞书群机器人（使用 interactive card + markdown）"""
-    if not FEISHU_WEBHOOK_URL:
-        print("⏭️  未设置 FEISHU_WEBHOOK_URL，跳过飞书推送")
-        return
+        md_parts.append(f"**{i}. {p['name']}**{tag_str}")
+        md_parts.append(f"💰 价格: **{p['price']}** 洛克贝 | 🎯 限购: {p['limit']}")
+        if p.get("remain"):
+            md_parts.append(f"⏳ 剩余: **{p['remain']}**")
+        if p.get("type"):
+            md_parts.append(f"📂 {p['type']}")
+        if p.get("desc"):
+            md_parts.append(f"📝 {p['desc']}")
+        md_parts.append("")  # 空行分隔
 
-    # 从消息中提取标题
-    title = ""
-    lines = content.split("\n")
-    for line in lines:
-        if line.startswith("# "):
-            title = line[2:].strip()
-            break
+    md_content = "\n".join(md_parts)
 
-    md_content = _wecom_md_to_feishu_md(content)
-
-    payload = {
+    return {
         "msg_type": "interactive",
         "card": {
             "header": {
-                "title": {
-                    "tag": "plain_text",
-                    "content": title,
-                },
+                "title": {"tag": "plain_text", "content": "🏪 洛克王国远行商人商品提醒"},
                 "template": "blue",
             },
             "elements": [
+                {"tag": "markdown", "content": md_content},
                 {
-                    "tag": "markdown",
-                    "content": md_content,
-                }
+                    "tag": "action",
+                    "actions": [
+                        {
+                            "tag": "button",
+                            "text": {"tag": "plain_text", "content": "📎 查看详情"},
+                            "type": "primary",
+                            "url": URL,
+                        }
+                    ],
+                },
             ],
         },
     }
+
+
+def build_feishu_no_merchant_card():
+    """无商人时段的飞书卡片"""
+    return {
+        "msg_type": "interactive",
+        "card": {
+            "header": {
+                "title": {"tag": "plain_text", "content": "🏪 洛克王国远行商人商品提醒"},
+                "template": "grey",
+            },
+            "elements": [
+                {"tag": "markdown", "content": "**⏰ 当前时段**: 00:00 - 08:00\n\n当前无远行商人，请等待下个时间段。"},
+                {
+                    "tag": "action",
+                    "actions": [
+                        {
+                            "tag": "button",
+                            "text": {"tag": "plain_text", "content": "📎 查看详情"},
+                            "type": "primary",
+                            "url": URL,
+                        }
+                    ],
+                },
+            ],
+        },
+    }
+
+
+def send_to_feishu(payload):
+    """推送飞书卡片消息"""
+    if not FEISHU_WEBHOOK_URL:
+        print("⏭️  未设置 FEISHU_WEBHOOK_URL，跳过飞书推送")
+        return
 
     resp = session.post(FEISHU_WEBHOOK_URL, json=payload, timeout=30)
     resp.raise_for_status()
@@ -258,13 +296,32 @@ def send_to_wecom(content):
 
 def main():
     print("🔍 正在抓取远行商人商品信息...")
-    html = fetch_page()
 
-    products, time_period, no_merchant = parse_products(html)
+    try:
+        html = fetch_page()
+    except Exception as e:
+        msg = (
+            "# ⚠️ 洛克王国远行商人\n"
+            "> **抓取失败，请检查网站是否可用**\n\n"
+            f"**错误信息**: {e}\n"
+        )
+        feishu_payload = {
+            "msg_type": "interactive",
+            "card": {
+                "header": {"title": {"tag": "plain_text", "content": "⚠️ 洛克王国远行商人"}, "template": "red"},
+                "elements": [{"tag": "markdown", "content": f"**抓取失败**\n\n错误信息: {e}"}],
+            },
+        }
+        send_to_wecom(msg)
+        send_to_feishu(feishu_payload)
+        return
 
-    if no_merchant:
+    products, time_period, is_no_merchant = parse_products(html)
+
+    if is_no_merchant:
         print("⏰ 当前为无商人时段 (0:00-8:00)")
         msg = build_no_merchant_message()
+        feishu_payload = build_feishu_no_merchant_card()
     elif not products:
         print("⚠️ 未找到商品信息")
         msg = (
@@ -272,6 +329,16 @@ def main():
             "> ⚠️ 未能获取到商品信息，请手动查看\n"
             f"\n[📎 点击查看详情]({URL})"
         )
+        feishu_payload = {
+            "msg_type": "interactive",
+            "card": {
+                "header": {"title": {"tag": "plain_text", "content": "🏪 洛克王国远行商人商品提醒"}, "template": "orange"},
+                "elements": [
+                    {"tag": "markdown", "content": "**⚠️ 未能获取到商品信息**，请手动查看"},
+                    {"tag": "action", "actions": [{"tag": "button", "text": {"tag": "plain_text", "content": "📎 查看详情"}, "type": "primary", "url": URL}]},
+                ],
+            },
+        }
     else:
         print(f"📦 当前时间段: {time_period}")
         print(f"📦 找到 {len(products)} 个商品:")
@@ -284,6 +351,7 @@ def main():
             flag = f" [{'、'.join(tags)}]" if tags else ""
             print(f"   - {p['name']}{flag} | 价格: {p['price']} | 限购: {p['limit']}")
         msg = build_message(products, time_period)
+        feishu_payload = build_feishu_card(products, time_period)
 
     print("\n📨 推送消息预览:")
     print("-" * 40)
@@ -292,7 +360,7 @@ def main():
 
     # 推送到所有已配置的渠道
     send_to_wecom(msg)
-    send_to_feishu(msg)
+    send_to_feishu(feishu_payload)
 
     if not WEBHOOK_URL and not FEISHU_WEBHOOK_URL:
         print("❌ 错误: 未配置任何推送渠道 (WECOM_WEBHOOK_URL / FEISHU_WEBHOOK_URL)")
