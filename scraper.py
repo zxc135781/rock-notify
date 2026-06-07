@@ -185,7 +185,7 @@ def build_feishu_card(products, time_period):
     for i, p in enumerate(products, 1):
         tags = []
         if p.get("high_value"):
-            tags.append("💎超高价值")
+            tags.append("<font color='orange'>💎超高价值</font>")
         if p.get("recommend"):
             tags.append("<font color='red'>🔥强烈推荐</font>")
         tag_str = " " + " ".join(tags) if tags else ""
