@@ -295,6 +295,10 @@ def send_to_wecom(content):
 
 
 def main():
+    if not WEBHOOK_URL and not FEISHU_WEBHOOK_URL:
+        print("❌ 错误: 未配置任何推送渠道 (WECOM_WEBHOOK_URL / FEISHU_WEBHOOK_URL)")
+        sys.exit(1)
+
     print("🔍 正在抓取远行商人商品信息...")
 
     try:
@@ -361,10 +365,6 @@ def main():
     # 推送到所有已配置的渠道
     send_to_wecom(msg)
     send_to_feishu(feishu_payload)
-
-    if not WEBHOOK_URL and not FEISHU_WEBHOOK_URL:
-        print("❌ 错误: 未配置任何推送渠道 (WECOM_WEBHOOK_URL / FEISHU_WEBHOOK_URL)")
-        sys.exit(1)
 
 
 if __name__ == "__main__":
