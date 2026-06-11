@@ -4,6 +4,7 @@
 import os
 import re
 import sys
+import time
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -254,13 +255,26 @@ def build_feishu_no_merchant_card():
     }
 
 
+def _retry(fn, retries=3, backoff=1):
+    """带指数退避的重试装饰器"""
+    for attempt in range(1, retries + 1):
+        try:
+            return fn()
+        except Exception as e:
+            if attempt == retries:
+                raise
+            wait = backoff * (2 ** (attempt - 1))
+            print(f"⚠️  第{attempt}次失败，{wait}秒后重试: {e}")
+            time.sleep(wait)
+
+
 def send_to_feishu(payload):
     """推送飞书卡片消息"""
     if not FEISHU_WEBHOOK_URL:
         print("⏭️  未设置 FEISHU_WEBHOOK_URL，跳过飞书推送")
         return
 
-    try:
+    def _do():
         resp = session.post(FEISHU_WEBHOOK_URL, json=payload, timeout=30)
         resp.raise_for_status()
         result = resp.json()
@@ -268,6 +282,9 @@ def send_to_feishu(payload):
             print("✅ 飞书消息推送成功")
         else:
             print(f"❌ 飞书推送失败: {result}")
+
+    try:
+        _retry(_do)
     except Exception as e:
         print(f"❌ 飞书推送异常: {e}")
 
@@ -285,7 +302,7 @@ def send_to_wecom(content):
         },
     }
 
-    try:
+    def _do():
         resp = session.post(WEBHOOK_URL, json=payload, timeout=30)
         resp.raise_for_status()
         result = resp.json()
@@ -293,6 +310,9 @@ def send_to_wecom(content):
             print("✅ 企业微信消息推送成功")
         else:
             print(f"❌ 企业微信推送失败: {result}")
+
+    try:
+        _retry(_do)
     except Exception as e:
         print(f"❌ 企业微信推送异常: {e}")
 
