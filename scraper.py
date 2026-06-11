@@ -260,14 +260,16 @@ def send_to_feishu(payload):
         print("⏭️  未设置 FEISHU_WEBHOOK_URL，跳过飞书推送")
         return
 
-    resp = session.post(FEISHU_WEBHOOK_URL, json=payload, timeout=30)
-    resp.raise_for_status()
-    result = resp.json()
-
-    if result.get("code") == 0 or result.get("StatusCode") == 0:
-        print("✅ 飞书消息推送成功")
-    else:
-        print(f"❌ 飞书推送失败: {result}")
+    try:
+        resp = session.post(FEISHU_WEBHOOK_URL, json=payload, timeout=30)
+        resp.raise_for_status()
+        result = resp.json()
+        if result.get("code") == 0 or result.get("StatusCode") == 0:
+            print("✅ 飞书消息推送成功")
+        else:
+            print(f"❌ 飞书推送失败: {result}")
+    except Exception as e:
+        print(f"❌ 飞书推送异常: {e}")
 
 
 def send_to_wecom(content):
@@ -283,15 +285,16 @@ def send_to_wecom(content):
         },
     }
 
-    resp = session.post(WEBHOOK_URL, json=payload, timeout=30)
-    resp.raise_for_status()
-    result = resp.json()
-
-    if result.get("errcode") == 0:
-        print("✅ 消息推送成功")
-    else:
-        print(f"❌ 推送失败: {result}")
-        sys.exit(1)
+    try:
+        resp = session.post(WEBHOOK_URL, json=payload, timeout=30)
+        resp.raise_for_status()
+        result = resp.json()
+        if result.get("errcode") == 0:
+            print("✅ 企业微信消息推送成功")
+        else:
+            print(f"❌ 企业微信推送失败: {result}")
+    except Exception as e:
+        print(f"❌ 企业微信推送异常: {e}")
 
 
 def main():
